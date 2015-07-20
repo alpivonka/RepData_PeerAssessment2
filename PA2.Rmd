@@ -1,0 +1,47 @@
+---
+title: 'Reproducible Research: Peer Assessment 2'
+author: "AWP"
+date: "Monday, July 20, 2015"
+output: html_document
+---
+
+##Synopsis
+
+
+##Data Processing
+```{r download_data}
+
+library(dplyr)
+#download data if not already downloaded
+if(!file.exists("FStormData.csv.bz2")){
+  url<-"http://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
+  download.file(url, dest="FStormData.csv.bz2", mode="wb") 
+}
+
+rawData <- mutate_each(read.csv("FStormData.csv.bz2"), funs(toupper))
+
+#rawData<-read.csv("FStormData.csv.bz2") 
+saveRDS(rawData,"data/raw_data.rds")
+summary(rawData)
+
+
+```
+
+```{r extract_data}
+#Extract data if not already extracted
+
+
+```
+
+```{r load_data}
+#load the data if not already cached
+
+```
+
+##Analysis
+```{r}
+```
+
+##Results
+```{r}
+```
