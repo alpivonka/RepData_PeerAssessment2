@@ -17,12 +17,18 @@ if(!file.exists("FStormData.csv.bz2")){
   url<-"http://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
   download.file(url, dest="FStormData.csv.bz2", mode="wb") 
   #read in the data from the compresed file
-  rawData <- read.csv("FStormData.csv.bz2")
-  #save off the data to a rds format
-  saveRDS(rawData,"raw_data.rds")
-}else if (file.exists("raw_data.rds")){
   
+}
+if (file.exists("raw_data.rds")){
   rawData<-readRDS("raw_data.rds")
+}else{
+  rawData <- read.csv("FStormData.csv.bz2")
+  
+  #rawData <- mutate_each(rawData$EVTYPE, funs(toupper))
+  
+  #save off the data to a rds format
+  
+  saveRDS(rawData,"raw_data.rds")
 }
 
 
@@ -36,6 +42,9 @@ if(!file.exists("FStormData.csv.bz2")){
 incompleteRows<-sum(!complete.cases(rawData))
 completeRows<-sum(complete.cases(rawData))
 #summary(rawData)
+rawData$EVENTTYPE<-toupper(rawData$EVTYPE)
+
+head(rawData,5)
 
 #EVTYPE BGN_DATE
 #FATALITIES
@@ -45,17 +54,18 @@ completeRows<-sum(complete.cases(rawData))
 #max_stepsByDay<-aggregate(steps ~ interval+date, data = omittedNA, FUN = mean)
 require(plyr); 
 require(lubridate)
-eventType_dates<-subset(rawData,select=c(EVTYPE,BGN_DATE)) 
+
+
+eventType_dates<-subset(rawData,select=c(EVENTTYPE,BGN_DATE)) 
 names(eventType_dates)
-cleanEventTypeDate<-eventType_dates[!duplicated(eventType_dates[,c("EVTYPE","BGN_DATE")]),]
+cleanEventTypeDate<-eventType_dates[!duplicated(eventType_dates[,c("EVENTTYPE","BGN_DATE")]),]
 rm(eventType_dates)
 
-cleanEventTypeDate<-mutate(cleanEventTypeDate, date = parse_date_time(BGN_DATE,"%m/%d/%y %H%M%S"), day = day(date), 
-  month = month(date), year = year(date))
+cleanEventTypeDate<-mutate(cleanEventTypeDate, date = parse_date_time(BGN_DATE,"%m/%d/%y %H%M%S"),year = year(date))
 
 #head(cleanEventTypeDate)
 
-head(arrange(cleanEventTypeDate,year,EVTYPE))
+head(arrange(cleanEventTypeDate,year,EVENTTYPE))
 
 #head(aggregate(cleanEventTypeDate,by=list(year,EVTYPE),FUN=sum))
 library(sqldf)
@@ -64,9 +74,23 @@ library(sqldf)
 
 
 
-numEventsByYear<-cleanEventTypeDate %>% group_by(EVTYPE,year) %>% tally()
-Eliminate50_54<-sqldf('SELECT EVTYPE, year,n FROM numEventsByYear where year>=1950 and year<=1954 ')
+numEventsByYear<-cleanEventTypeDate %>% group_by(EVENTTYPE,year) %>% tally()
+Eliminate50_54<-sqldf('SELECT EVENTTYPE, year,n FROM numEventsByYear where year>=1950 and year<=1954 ')
 Eliminate50_54
+
+aggEventType<-aggregate( numEventsByYear$n ~numEventsByYear$EVENTTYPE ,FUN = sum, na.rm=TRUE)
+names(aggEventType)<-c("EVENTTYPE","Num")
+
+#Which event has the most occurences 
+top_10<-aggEventType %>%  top_n(n=10) 
+top_10[order(-top_10$Num),]
+
+
+
+#library(ggplot2)
+
+#ggplot(data=aggEventType, aes(x=EVENTTYPE, y=Num)) +geom_bar(stat="identity")
+
 
 ```
 The raw data has `r format(incompleteRows,big.mark=",",scientific=FALSE)` incomplete rows and `r completeRows` complete rows. Elminiation of incomplete rows is not possilbe at this point and time.
