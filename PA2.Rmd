@@ -19,32 +19,33 @@ if(!file.exists("FStormData.csv.bz2")){
   #read in the data from the compresed file
   
 }
-if (file.exists("raw_data.rds")){
-  rawData<-readRDS("raw_data.rds")
-}else{
-  rawData <- read.csv("FStormData.csv.bz2")
+#We save the raw data to disk as rds, check if it exists, if not create it.
+if (!file.exists("raw_data.rds")){
+   rawData <- read.csv("FStormData.csv.bz2")
   
-  #rawData <- mutate_each(rawData$EVTYPE, funs(toupper))
+  #Convert EVTTYPT to all upper-case and add a new column called EVENTTYPE
+  rawData$EVENTTYPE<-toupper(rawData$EVTYPE)
+  
+  #Narrow our focus
+  rawNarrowed<-subset(rawData,select=c(EVENTTYPE,BGN_DATE,MAG,FATALITIES,INJURIES,PROPDMG,PROPDMGEXP,CROPDMG,CROPDMGEXP,WFO))
   
   #save off the data to a rds format
-  
-  saveRDS(rawData,"raw_data.rds")
+  saveRDS(rawNarrowed,"raw_data.rds")
+  rawData<-rawNarrowed
+  rm(rawNarrowed)
+}else{
+ 
+  rawData<-readRDS("raw_data.rds")
 }
-
-
-
-
 ```
 
 ##Analysis
 ```{r initial_analysis}
-
+#Get counts of complete and incomplete data sets
 incompleteRows<-sum(!complete.cases(rawData))
 completeRows<-sum(complete.cases(rawData))
-#summary(rawData)
-rawData$EVENTTYPE<-toupper(rawData$EVTYPE)
 
-head(rawData,5)
+names(rawData)
 
 #EVTYPE BGN_DATE
 #FATALITIES
@@ -54,6 +55,39 @@ head(rawData,5)
 #max_stepsByDay<-aggregate(steps ~ interval+date, data = omittedNA, FUN = mean)
 require(plyr); 
 require(lubridate)
+library(dplyr)
+```
+
+The raw data has `r format(incompleteRows,big.mark=",",scientific=FALSE)` incomplete rows and `r completeRows` complete rows. Elminiation of incomplete rows is not possilbe at this point and time.
+
+
+```{r find_duplicate_eventtypes}
+
+#get all of the Eventtypes
+allEventTypes<-subset(rawData,select=c(EVENTTYPE))
+#find all eventtypes that are duplicates
+duplicateEventTypes<-allEventTypes[duplicated(allEventTypes[,c("EVENTTYPE")]),]
+#find unique eventtypes from the duplicate list
+uniqueDuplicateEventTypes<-unique(duplicateEventTypes)
+
+outcome<-rawData %>% group_by(EVENTTYPE) %>% summarise_each(funs(sum))
+nrow(outcome)
+
+outcome[outcome$EVENTTYPE=="TORNADO",]
+
+
+
+
+```
+
+word
+
+```{r}
+names(rawData)
+xx<-rawData[rawData$EVENTTYPE=="TORNADO",] 
+
+xx
+
 
 
 eventType_dates<-subset(rawData,select=c(EVENTTYPE,BGN_DATE)) 
@@ -71,8 +105,10 @@ head(arrange(cleanEventTypeDate,year,EVENTTYPE))
 library(sqldf)
 #sqldf('SELECT A, SUM(B) AS B FROM df GROUP BY A')
 #numEventsByYear<-sqldf('SELECT EVTYPE, year,count(*) as cnt FROM cleanEventTypeDate where year>=1950 and year<=1954 GROUP BY year,EVTYPE')
+```
 
 
+```{r ploting, fig.width=10}
 
 numEventsByYear<-cleanEventTypeDate %>% group_by(EVENTTYPE,year) %>% tally()
 Eliminate50_54<-sqldf('SELECT EVENTTYPE, year,n FROM numEventsByYear where year>=1950 and year<=1954 ')
@@ -83,17 +119,37 @@ names(aggEventType)<-c("EVENTTYPE","Num")
 
 #Which event has the most occurences 
 top_10<-aggEventType %>%  top_n(n=10) 
-top_10[order(-top_10$Num),]
+OrderedTop10<-top_10[order(-top_10$Num),]
 
 
 
-#library(ggplot2)
 
-#ggplot(data=aggEventType, aes(x=EVENTTYPE, y=Num)) +geom_bar(stat="identity")
+library(ggplot2)
 
+ggplot(data=OrderedTop10, aes(x=EVENTTYPE, y=Num)) +geom_bar(stat="identity")+theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5))
+
+
+OrderedTop10
 
 ```
-The raw data has `r format(incompleteRows,big.mark=",",scientific=FALSE)` incomplete rows and `r completeRows` complete rows. Elminiation of incomplete rows is not possilbe at this point and time.
+
+
+
+```{r}
+numEventsByEventType<-cleanEventTypeDate %>% group_by(EVENTTYPE) %>% tally()
+
+aggEventTypeOnly<-aggregate( numEventsByYear$n ~numEventsByYear$EVENTTYPE ,FUN = sum, na.rm=TRUE)
+
+head(aggEventTypeOnly)
+
+top_10Events<-aggEventTypeOnly %>%  top_n(n=10) 
+OrderedTop10Events<-top_10Events[order(-top_10$Num),]
+
+OrderedTop10Events
+
+```
+
+
 
 
 ##Results
