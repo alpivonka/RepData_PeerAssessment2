@@ -82,12 +82,37 @@ outcome[outcome$EVENTTYPE=="TORNADO",]
 
 word
 
-```{r}
-names(rawData)
+```{r summerize-data}
 xx<-rawData[rawData$EVENTTYPE=="TORNADO",] 
 
-xx
+propertyDamage<-xx %>% group_by(EVENTTYPE,PROPDMGEXP) %>% summarise_each(funs(sum),vars=c(-BGN_DATE,-FATALITIES,-INJURIES,-MAG,-WFO,-CROPDMGEXP,-CROPDMG))
+cropDamage<-xx %>% group_by(EVENTTYPE,CROPDMGEXP) %>% summarise_each(funs(sum),vars=c(-BGN_DATE,-FATALITIES,-INJURIES,-MAG,-WFO,-PROPDMGEXP,-PROPDMG))
 
+FATALITIES<-xx %>% group_by(EVENTTYPE) %>% summarise_each(funs(sum),vars=c(-BGN_DATE,-INJURIES,-MAG,-WFO,-PROPDMGEXP,-PROPDMG,-CROPDMG,-CROPDMGEXP))
+
+INJURIES<-xx %>% group_by(EVENTTYPE) %>% summarise_each(funs(sum),vars=c(-BGN_DATE,-FATALITIES,-MAG,-WFO,-PROPDMGEXP,-PROPDMG,-CROPDMG,-CROPDMGEXP))
+
+propertyDamage
+cropDamage
+FATALITIES
+INJURIES
+
+
+
+INJURIES<-rawData %>% group_by(EVENTTYPE) %>% summarise_each(funs(sum),vars=c(-BGN_DATE,-FATALITIES,-MAG,-WFO,-PROPDMGEXP,-PROPDMG,-CROPDMG,-CROPDMGEXP))
+INJURIES$TT<-INJURIES$FATALITIES + INJURIES$INJURIES
+arrange(INJURIES,desc(TT))
+
+```
+
+
+```{r}
+names(rawData)
+
+
+#xx %>% group_by(EVENTTYPE,CROPDMGEXP,PROPDMGEXP) %>% summarise_each(funs(sum),vars=c(-PROPDMGEXP,-CROPDMGEXP))
+
+#xx %>% group_by(EVENTTYPE) %>% summarise(theEVENTTYPE==EVENTTYPE,MagSum=sum(MAG),FatalititySum=sum(FATALITIES),InjueriesSum=sum(INJURIES))
 
 
 eventType_dates<-subset(rawData,select=c(EVENTTYPE,BGN_DATE)) 
