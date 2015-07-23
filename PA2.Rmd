@@ -27,7 +27,9 @@ if (!file.exists("raw_data.rds")){
   rawData$EVENTTYPE<-toupper(rawData$EVTYPE)
   
   #Narrow our focus
-  rawNarrowed<-subset(rawData,select=c(EVENTTYPE,BGN_DATE,MAG,FATALITIES,INJURIES,PROPDMG,PROPDMGEXP,CROPDMG,CROPDMGEXP,WFO))
+  rawData<-mutate(rawData, date = parse_date_time(BGN_DATE,"%m/%d/%y %H%M%S"),YEAR = year(date))
+  #add the year (want to eliminate all data between 1950-1954 because they only recored one Event type during that time)
+  rawNarrowed<-subset(rawData, !(rawData$YEAR %in% c("1950","1951","1952","1953","1954")),select=c(EVENTTYPE,BGN_DATE,MAG,FATALITIES,INJURIES,PROPDMG,PROPDMGEXP,CROPDMG,CROPDMGEXP,WFO))
   
   #save off the data to a rds format
   saveRDS(rawNarrowed,"raw_data.rds")
@@ -97,11 +99,15 @@ cropDamage
 FATALITIES
 INJURIES
 
+  
 
+INJURIES<-rawData %>% group_by(EVENTTYPE) %>% summarise_each(funs(sum),vars=c(-BGN_DATE,-MAG,-WFO,-PROPDMGEXP,-PROPDMG,-CROPDMG,-CROPDMGEXP))
+INJURIES$INJ_FAT<-INJURIES$FATALITIES + INJURIES$INJURIES
+top_10<-INJURIES %>%  top_n(n=5)
+library(ggplot2)
+ggplot(data=top_10, aes(x=EVENTTYPE, y=INJ_FAT)) +geom_bar(stat="identity")+theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5))
 
-INJURIES<-rawData %>% group_by(EVENTTYPE) %>% summarise_each(funs(sum),vars=c(-BGN_DATE,-FATALITIES,-MAG,-WFO,-PROPDMGEXP,-PROPDMG,-CROPDMG,-CROPDMGEXP))
-INJURIES$TT<-INJURIES$FATALITIES + INJURIES$INJURIES
-arrange(INJURIES,desc(TT))
+arrange(INJURIES,desc(INJ_FAT))
 
 ```
 
