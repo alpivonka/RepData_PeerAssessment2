@@ -1,0 +1,89 @@
+
+---
+title: 'Reproducible Research: Peer Assessment 2'
+author: "AWP"
+date: "Monday, July 20, 2015"
+output: html_document
+---
+
+##Synopsis
+
+
+##Data Processing
+```{r download_data_and_load_data}
+
+library(dplyr)
+require(plyr); 
+require(lubridate)
+
+#download data if not already downloaded
+if(!file.exists("FStormData.csv.bz2")){
+  url<-"http://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
+  download.file(url, dest="FStormData.csv.bz2", mode="wb") 
+  #read in the data from the compresed file
+  
+}
+#We save the raw data to disk as rds, check if it exists, if not create it.
+if (!file.exists("raw_data.rds")){
+   rawData <- read.csv("FStormData.csv.bz2")
+  
+  #Convert EVTTYPT to all upper-case and add a new column called EVENTTYPE
+  rawData$EVENTTYPE<-toupper(rawData$EVTYPE)
+  
+  #Narrow our focus
+  rawData<-mutate(rawData, date = parse_date_time(BGN_DATE,"%m/%d/%y %H%M%S"),YEAR = year(date))
+  #add the year (want to eliminate all data between 1950-1954 because they only recored one Event type during that time)
+  rawNarrowed<-subset(rawData, !(rawData$YEAR %in% c("1950","1951","1952","1953","1954")),select=c(EVENTTYPE,BGN_DATE,MAG,FATALITIES,INJURIES,PROPDMG,PROPDMGEXP,CROPDMG,CROPDMGEXP,WFO))
+  
+  #save off the data to a rds format
+  saveRDS(rawNarrowed,"raw_data.rds")
+  rawData<-rawNarrowed
+  rm(rawNarrowed)
+}else{
+ 
+  rawData<-readRDS("raw_data.rds")
+}
+```
+
+##Analysis
+
+```{r new}
+rawData$PROPDMGEXP<-toupper(rawData$PROPDMGEXP)
+rawData$CROPDMGEXP<-toupper(rawData$CROPDMGEXP)
+amounts<-c("K","M","B","H")
+newRaw<-subset(rawData,rawData$PROPDMGEXP %in% amounts & rawData$CROPDMGEXP %in% amounts,select=c(EVENTTYPE,PROPDMG,PROPDMGEXP,CROPDMG,CROPDMGEXP) )
+#newRaw<-subset(rawData,rawData$PROPDMGEXP %in% amounts & rawData$CROPDMGEXP %in% amounts,select=c(EVENTTYPE,PROPDMG,PROPDMGEXP,CROPDMG,CROPDMGEXP) )
+
+
+newRaw$PROP_DMG<-ifelse(newRaw$PROPDMGEXP=="M",newRaw$PROPDMG/1000,newRaw$PROPDMG) 
+newRaw$PROP_DMG<-ifelse(newRaw$PROPDMGEXP=="K",newRaw$PROPDMG/1000000,newRaw$PROP_DMG)  
+newRaw$PROP_DMG <- format(newRaw$PROP_DMG, scientific = FALSE)
+
+
+newRaw$CROP_DMG<-ifelse(newRaw$CROPDMGEXP=="M",newRaw$CROPDMG/1000,newRaw$CROPDMG) 
+newRaw$CROP_DMG<-ifelse(newRaw$CROPDMGEXP=="K",newRaw$CROPDMG/1000000,newRaw$CROP_DMG)  
+newRaw$CROP_DMG <- format(newRaw$CROP_DMG, scientific = FALSE)
+
+```
+
+
+```{r xxx}
+head(newRaw, 20)
+newRaw<-subset(newRaw,select=c(EVENTTYPE,PROP_DMG,CROP_DMG))
+newRaw$CROP_DMG<-as.double(newRaw$CROP_DMG)
+newRaw$PROP_DMG<-as.double(newRaw$PROP_DMG)
+head(newRaw, 20)
+damage<-newRaw %>% group_by(EVENTTYPE) %>% summarise_each(funs(sum))
+
+
+damage$TOTAL_DAMAGE_B<-damage$CROP_DMG + damage$PROP_DMG
+damage_top_10<-damage %>%  top_n(n=10)
+
+damageMax<-damage_top_10[which.max(damage_top_10$TOTAL_DAMAGE_B),]
+head(damage_top_10[with(damage_top_10, order(-TOTAL_DAMAGE_B)),],10)
+
+damageMax
+
+
+
+```

@@ -11,7 +11,7 @@ output: html_document
 
 ##Data Processing
 ```{r download_data_and_load_data}
-
+library(lubridate)
 library(dplyr)
 #download data if not already downloaded
 if(!file.exists("FStormData.csv.bz2")){
@@ -50,6 +50,7 @@ completeRows<-sum(complete.cases(rawData))
 
 require(plyr); 
 require(lubridate)
+require(pander)
 library(dplyr)
 library(pander)
 ```
@@ -80,13 +81,11 @@ rawNarrowed<-subset(rawData, !(rawData$YEAR %in% c("1950","1951","1952","1953","
 
 
 ##Results
-```{r}
+```{r question_One_justification}
 INJURIES<-rawNarrowed %>% group_by(EVENTTYPE) %>% summarise_each(funs(sum),vars=c(-MAG,-WFO,-PROPDMGEXP,-PROPDMG,-CROPDMG,-CROPDMGEXP))
 INJURIES$INJ_FAT<-INJURIES$FATALITIES + INJURIES$INJURIES
 top_10<-INJURIES %>%  top_n(n=5)
-
 maxx<-top_10[which.max(top_10$INJ_FAT),]
-
 ```
 
     1. Across the United States, which types of events (as indicated in the EVTYPE variable) are most harmful with respect to population health?
