@@ -1,0 +1,222 @@
+---
+title: 'An Analysis of Impact by Weather Events on Health and Economics'
+author: "AWP"
+date: "Monday, July 24, 2015"
+output: html_document
+---
+
+##Synopsis
+This report identifies the most significant weather event types with the largest impact on population health (as measured by number of combined fatalities and injuries) and the largest economic consequences (as measured by the  property damage and crop damage sustained during the event). 
+
+This analysis finds that the weather event which impacts it is Tornato events have the greatest impact on population health. Due to excessive rains and high water caused by Flooding, we find that flooding events have the largest effect on crop and property damage.
+
+##Data Processing
+
+
+
+`````{r download_data_and_load_data,warning=FALSE,message=FALSE}
+library(lubridate)
+library(dplyr)
+require(lubridate)
+require(pander)
+library(ggplot2)
+
+#download data if not already downloaded
+if(!file.exists("FStormData.csv.bz2")){
+  url<-"http://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
+  download.file(url, dest="FStormData.csv.bz2", mode="wb") 
+  #read in the data from the compresed file
+  
+}
+#We save the raw data to disk as rds, check if it exists, if not create it.
+if (!file.exists("raw_data.rds")){
+   rawData <- read.csv("FStormData.csv.bz2")
+  
+  #Convert EVTTYPT to all upper-case and add a new column called EVENTTYPE
+  rawData$EVENTTYPE<-toupper(rawData$EVTYPE)
+  
+  #save off the data to a rds format
+  saveRDS(rawNarrowed,"raw_data.rds")
+  rawData<-rawNarrowed
+  rm(rawNarrowed)
+}else{
+ 
+  rawData<-readRDS("raw_data.rds")
+}
+```
+
+###Question One Data Processing
+
+```{r raw_counts}
+#Narrow our focus
+
+incompleteRows<-sum(!complete.cases(rawData))
+completeRows<-sum(complete.cases(rawData))
+
+```
+The raw data has `r format(incompleteRows,big.mark=",",scientific=FALSE)` incomplete rows and `r format(completeRows,big.mark=",",scientific=FALSE)` complete rows. 
+
+
+```{r narrow_scope}
+#Time to elimate columns that are not needed.
+  rawNarrowed<-subset(rawData,select=c(EVENTTYPE,BGN_DATE,MAG,FATALITIES,INJURIES,PROPDMG,PROPDMGEXP,CROPDMG,CROPDMGEXP,WFO))
+ 
+#Get counts of complete and incomplete data sets
+incompleteRowsRN<-sum(!complete.cases(rawNarrowed))
+completeRowsRN<-sum(complete.cases(rawNarrowed))
+ 
+
+```
+    
+By narrowing the scope of data to only those columns used to answer the two questions, the new data has `r format(incompleteRowsRN,big.mark=",",scientific=FALSE)` incomplete rows and `r format(completeRowsRN,big.mark=",",scientific=FALSE)` complete rows.     
+  
+```{r question_one_analysis1}
+#add column called year for future reference
+rawNarrowed<-mutate(rawNarrowed, date = parse_date_time(BGN_DATE,"%m/%d/%y %H%M%S"),YEAR = year(date))
+
+
+#this is the code which supports our decision to remove data from 1950 - 1954.
+#Narrow the data set
+eventType_dates<-subset(rawData,select=c(EVENTTYPE,YEAR)) 
+#Tally (Sum) The number of occurances and Event type has per year
+numEventsByYear<-eventType_dates %>% group_by(EVENTTYPE,YEAR) %>% tally()
+colnames(numEventsByYear)<-c("EVENTTYPE","YEAR","NumberOccurrencesPerYear")
+panderOptions("table.style", "simple")
+#Show in a table
+tornatoTable<-pander(head(numEventsByYear[with(numEventsByYear, order(YEAR)),],10))
+
+
+#Remove the years (want to eliminate all data between 1950-1954 because they only recored one Event type during that time)
+rawNarrowed<-subset(rawData, !(rawData$YEAR %in% c("1950","1951","1952","1953","1954")),select=c(EVENTTYPE,YEAR,MAG,FATALITIES,INJURIES,PROPDMG,PROPDMGEXP,CROPDMG,CROPDMGEXP,WFO))
+
+
+```
+
+
+The only event recored between 1950 and 1954 is Tornato, we are going to eliminate this data from the data set to remove outliers.
+
+
+    `r tornatoTable`
+
+
+```{r question_one_analysis2,fig.width=10}
+#Lets summrize by Event types
+INJURIES<-rawNarrowed %>% group_by(EVENTTYPE) %>% summarise_each(funs(sum),vars=c(-YEAR,-MAG,-WFO,-PROPDMGEXP,-PROPDMG,-CROPDMG,-CROPDMGEXP))
+#Obtain the total of Fatalities and Injuries
+INJURIES$INJ_FAT<-INJURIES$FATALITIES + INJURIES$INJURIES
+
+#Get the top N number of results
+top_10_Injuries<-INJURIES %>%  top_n(n=5)
+
+top_10_Injuries
+
+#Find the row with the max INJ_FAT value
+answerQuestion1<-top_10_Injuries[which.max(top_10_Injuries$INJ_FAT),]
+answerQuestion1
+
+#got to make things look good on the graph
+top_10_Injuries$INJ_FAT<-format(top_10_Injuries$INJ_FAT,big.mark=",",scientific=FALSE)
+
+plot_Question1<-ggplot(data=top_10_Injuries, aes(x=EVENTTYPE, y=INJ_FAT)) +geom_bar(stat="identity")+theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5))
+
+```
+
+###Question Two Data Processing
+
+In question two, the data processing performed in question one in regards to data recorded between 1950 and 1954 still applies.
+
+We will begin our data processing for question two with the rawNarrowed data set. We need a common uppercase value for both crop and property Damage expression
+
+```{r question_two_analysis1}
+#We need a common uppercase value for both crop and property Damage expression
+rawNarrowed$PROPDMGEXP<-toupper(rawNarrowed$PROPDMGEXP)
+rawNarrowed$CROPDMGEXP<-toupper(rawNarrowed$CROPDMGEXP)
+```
+
+Now narrow the data set to the rows in which we need.
+
+```{r question_two_analysis2}
+amounts<-c("K","M","B","H")
+newRaw<-subset(rawData,rawData$PROPDMGEXP %in% amounts & rawData$CROPDMGEXP %in% amounts,select=c(EVENTTYPE,PROPDMG,PROPDMGEXP,CROPDMG,CROPDMGEXP) )
+
+
+```
+
+We need a common value for both property and crop damage. We will use billions as our common value and convert all other values to billions.
+
+```{r question_two_analysis3}
+
+newRaw$PROP_DMG<-ifelse(newRaw$PROPDMGEXP=="M",newRaw$PROPDMG/1000,newRaw$PROPDMG) 
+newRaw$PROP_DMG<-ifelse(newRaw$PROPDMGEXP=="K",newRaw$PROPDMG/1000000,newRaw$PROP_DMG)  
+newRaw$PROP_DMG <- format(newRaw$PROP_DMG, scientific = FALSE)
+
+
+newRaw$CROP_DMG<-ifelse(newRaw$CROPDMGEXP=="M",newRaw$CROPDMG/1000,newRaw$CROPDMG) 
+newRaw$CROP_DMG<-ifelse(newRaw$CROPDMGEXP=="K",newRaw$CROPDMG/1000000,newRaw$CROP_DMG)  
+newRaw$CROP_DMG <- format(newRaw$CROP_DMG, scientific = FALSE)
+
+```
+
+We are going to narrow down the data set and make sure our new values are of type double. Once we have things where we want them we need to summarise the data and obtain a total of both Crop and Property Damages for each Event type and add it as a new column to the data set.
+
+
+```{r question_two_analysis4}
+newRaw<-subset(newRaw,select=c(EVENTTYPE,PROP_DMG,CROP_DMG))
+
+newRaw$CROP_DMG<-as.double(newRaw$CROP_DMG)
+newRaw$PROP_DMG<-as.double(newRaw$PROP_DMG)
+
+damage<-newRaw %>% group_by(EVENTTYPE) %>% summarise_each(funs(sum))
+
+damage$TOTAL_DAMAGE_B<-damage$CROP_DMG + damage$PROP_DMG
+```
+
+Time to get the top 10 Event types. top_n will use our new column since it is the last column in the data frame.
+
+```{r question_two_analysis5}
+
+damage_top_10<-damage %>%  top_n(n=10)
+
+question2Answer<-damage_top_10[which.max(damage_top_10$TOTAL_DAMAGE_B),]
+head(damage_top_10[with(damage_top_10, order(-TOTAL_DAMAGE_B)),],10)
+
+question2Answer
+
+#got to make things look good on the graph
+damage_top_10$TOTAL_DAMAGE_B<-format(damage_top_10$TOTAL_DAMAGE_B,big.mark=",",scientific=FALSE)
+
+plot_Question2<-ggplot(data=damage_top_10, aes(x=EVENTTYPE, y=TOTAL_DAMAGE_B)) +geom_bar(stat="identity")+theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5))
+#plot_Question2
+
+
+```
+
+
+#Results
+
+###Question 1
+    Across the United States, which types of events (as indicated in the EVTYPE variable) are most harmful with respect to population health?
+    
+    
+####Question 1 Results/Findings:
+    The most harmful event across the United States is the `r answerQuestion1$EVENTTYPE` with a combined total Injuries and Fatalities of `r format(answerQuestion1$INJ_FAT,big.mark=",",scientific=FALSE)`.
+
+    The following bar chart shows the top 5 events and their combined totals.
+```{r question_one_answer,echo=FALSE,fig.width=10}
+ggplot(data=top_10_Injuries, aes(x=EVENTTYPE, y=INJ_FAT)) +geom_bar(stat="identity")+theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5))+labs(x="Event Types",y="Total Injuries and Fatalities", title="Most Harmful Events")
+```
+<hr>
+###Question 2
+    Across the United States, which types of events have the greatest economic consequences?
+    
+    
+####Question 2 Results/Findings:
+    The event with the greatest economic consequences is `r question2Answer$EVENTTYPE` with a combined total Crop and Property damage of `r format(question2Answer$TOTAL_DAMAGE_B,big.mark=",",scientific=FALSE)` billion dollars.
+
+    The following bar chart shows the top 10 events and their combined totals.
+    
+```{r question_two_answer, echo=FALSE, fig.width=10}
+ggplot(data=damage_top_10, aes(x=EVENTTYPE, y=TOTAL_DAMAGE_B)) +geom_bar(stat="identity")+theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5))+labs(x="Event Types",y="Billions of dollars", title="Crop and Property Damage")
+
+```
+

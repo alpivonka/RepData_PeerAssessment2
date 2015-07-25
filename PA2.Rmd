@@ -43,11 +43,6 @@ if (!file.exists("raw_data.rds")){
 
 ##Analysis
 
-```{r new}
-
-rawNarrowed 
-
-```
 
 ```{r initial_analysis}
 #Get counts of complete and incomplete data sets
