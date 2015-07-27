@@ -1,7 +1,7 @@
 ---
 title: 'An Analysis of Impact by Weather Events on Health and Economics'
 author: "AWP"
-date: "Monday, July 24, 2015"
+date: July 24, 2015"
 output: html_document
 ---
 
@@ -14,7 +14,7 @@ This analysis finds that the weather event which impacts it is Tornato events ha
 
 
 
-`````{r download_data_and_load_data,warning=FALSE,message=FALSE}
+```{r download_data_and_load_data,warning=FALSE,message=FALSE}
 library(lubridate)
 library(dplyr)
 require(lubridate)
